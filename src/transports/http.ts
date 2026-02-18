@@ -36,6 +36,36 @@ export function isLocalhostOrigin(origin: string): boolean {
   }
 }
 
+function normalizeOrigin(origin: string): string | null {
+  try {
+    const url = new URL(origin);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
+export function parseAllowedOrigins(value: string | undefined): Set<string> {
+  if (!value) return new Set();
+
+  const origins = value
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(origin => origin.length > 0)
+    .map(normalizeOrigin)
+    .filter((origin): origin is string => origin !== null);
+
+  return new Set(origins);
+}
+
+export function isAllowedOrigin(origin: string, configuredOrigins: Set<string>): boolean {
+  if (isLocalhostOrigin(origin)) {
+    return true;
+  }
+  const normalizedOrigin = normalizeOrigin(origin);
+  return normalizedOrigin !== null && configuredOrigins.has(normalizedOrigin);
+}
+
 export interface HttpTransportConfig {
   port?: number;
   host?: string;
@@ -56,6 +86,20 @@ export class HttpTransportHandler {
     this.tokenManager = tokenManager;
   }
 
+  private getPublicBaseUrl(host: string, port: number): string {
+    const configured = process.env.PUBLIC_BASE_URL?.trim();
+    if (configured) {
+      const normalized = normalizeOrigin(configured);
+      if (normalized) {
+        return normalized;
+      }
+      process.stderr.write(
+        `Warning: PUBLIC_BASE_URL is invalid ("${configured}"). Falling back to http://${host}:${port}\n`
+      );
+    }
+    return `http://${host}:${port}`;
+  }
+
   /**
    * Creates an OAuth2Client configured for the given account.
    * Consolidates credential loading and redirect URI construction.
@@ -64,10 +108,11 @@ export class HttpTransportHandler {
     const { OAuth2Client } = await import('google-auth-library');
     const { loadCredentials } = await import('../auth/client.js');
     const { client_id, client_secret } = await loadCredentials();
+    const publicBaseUrl = this.getPublicBaseUrl(host, port);
     return new OAuth2Client(
       client_id,
       client_secret,
-      `http://${host}:${port}/oauth2callback?account=${accountId}`
+      `${publicBaseUrl}/oauth2callback?account=${accountId}`
     );
   }
 
@@ -109,6 +154,8 @@ export class HttpTransportHandler {
   async connect(): Promise<void> {
     const port = this.config.port || 3000;
     const host = this.config.host || '127.0.0.1';
+    const configuredOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
+    const publicBaseUrl = this.getPublicBaseUrl(host, port);
 
     // Configure transport for stateless mode to allow multiple initialization cycles
     const transport = new StreamableHTTPServerTransport({
@@ -120,11 +167,12 @@ export class HttpTransportHandler {
     // Create HTTP server to handle the StreamableHTTP transport
     const httpServer = http.createServer(async (req, res) => {
       // Validate Origin header to prevent DNS rebinding attacks (MCP spec requirement)
-      const origin = req.headers.origin;
+      const originHeader = req.headers.origin;
+      const origin = Array.isArray(originHeader) ? originHeader[0] : originHeader;
 
       // For requests with Origin header, validate it using proper URL parsing
       // This prevents bypass via subdomains like localhost.attacker.com
-      if (origin && !isLocalhostOrigin(origin)) {
+      if (origin && !isAllowedOrigin(origin, configuredOrigins)) {
         res.writeHead(403, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           error: 'Forbidden: Invalid origin',
@@ -146,13 +194,15 @@ export class HttpTransportHandler {
       }
 
       // Handle CORS - restrict to localhost only for security
-      // HTTP mode is designed for local development/testing only
-      const allowedCorsOrigin = origin && isLocalhostOrigin(origin)
+      // HTTP mode is designed for local development/testing by default.
+      // For reverse proxies/production, set ALLOWED_ORIGINS and PUBLIC_BASE_URL.
+      const allowedCorsOrigin = origin && isAllowedOrigin(origin, configuredOrigins)
         ? origin
-        : `http://${host}:${port}`;
+        : publicBaseUrl;
       res.setHeader('Access-Control-Allow-Origin', allowedCorsOrigin);
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id');
+      res.setHeader('Vary', 'Origin');
       
       if (req.method === 'OPTIONS') {
         res.writeHead(200);
@@ -319,7 +369,7 @@ export class HttpTransportHandler {
           CalendarRegistry.getInstance().clearCache();
 
           // Compute allowed origin for postMessage (localhost only)
-          const postMessageOrigin = `http://${host}:${port}`;
+          const postMessageOrigin = publicBaseUrl;
 
           const successHtml = await renderAuthSuccess({
             accountId,

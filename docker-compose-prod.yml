@@ -31,6 +31,8 @@ services:
       - TRANSPORT=http
       - HOST=0.0.0.0
       - PORT=3000
+      - PUBLIC_BASE_URL=https://google-calendar-mcp.blue7.com.br
+      - ALLOWED_ORIGINS=https://google-calendar-mcp.blue7.com.br
       - GOOGLE_OAUTH_CREDENTIALS=/run/secrets/gcp_oauth_keys
 
     secrets:

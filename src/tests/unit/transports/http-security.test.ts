@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLocalhostOrigin } from '../../../transports/http.js';
+import { isLocalhostOrigin, parseAllowedOrigins, isAllowedOrigin } from '../../../transports/http.js';
 
 describe('isLocalhostOrigin', () => {
   describe('valid localhost origins', () => {
@@ -75,5 +75,27 @@ describe('isLocalhostOrigin', () => {
       // Only exact 127.0.0.1 is allowed, not other loopback addresses
       expect(isLocalhostOrigin('http://127.0.0.2')).toBe(false);
     });
+  });
+});
+
+describe('configured origin allowlist', () => {
+  it('should accept exact configured production origin', () => {
+    const allowed = parseAllowedOrigins('https://google-calendar-mcp.blue7.com.br');
+    expect(isAllowedOrigin('https://google-calendar-mcp.blue7.com.br', allowed)).toBe(true);
+  });
+
+  it('should reject unconfigured external origin', () => {
+    const allowed = parseAllowedOrigins('https://google-calendar-mcp.blue7.com.br');
+    expect(isAllowedOrigin('https://evil.example.com', allowed)).toBe(false);
+  });
+
+  it('should reject subdomain bypass attempts for configured origin', () => {
+    const allowed = parseAllowedOrigins('https://google-calendar-mcp.blue7.com.br');
+    expect(isAllowedOrigin('https://google-calendar-mcp.blue7.com.br.attacker.com', allowed)).toBe(false);
+  });
+
+  it('should keep localhost allowed even without configured origins', () => {
+    const allowed = parseAllowedOrigins(undefined);
+    expect(isAllowedOrigin('http://localhost:3000', allowed)).toBe(true);
   });
 });
