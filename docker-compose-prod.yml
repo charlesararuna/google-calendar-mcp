@@ -1,0 +1,62 @@
+services:
+  calendar_mcp:
+    image: charlesararuna/google-calendar-mcp:latest
+    command: node build/index.js --transport http --host 0.0.0.0 --port 3000
+
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.calendar_mcp.rule=Host(`google-calendar.blue7.com.br`)
+        - traefik.http.routers.calendar_mcp.priority=100
+        - traefik.http.routers.calendar_mcp.entrypoints=websecure
+        - traefik.http.routers.calendar_mcp.tls=true
+        - traefik.http.routers.calendar_mcp.tls.certresolver=${TRAEFIK_CERTRESOLVER:-le}
+        - traefik.http.services.calendar_mcp.loadbalancer.server.port=3000
+        - traefik.docker.network=${TRAEFIK_NETWORK:-minha_rede}
+      placement:
+        constraints:
+          - node.role == manager
+    environment:
+      - NODE_ENV=production
+      - TRANSPORT=http
+      - HOST=0.0.0.0
+      - PORT=3000
+      - GOOGLE_OAUTH_CREDENTIALS=/run/secrets/gcp_oauth_keys
+
+    secrets:
+      - gcp_oauth_keys
+
+    volumes:
+      - calendar_tokens:/home/nodejs/.config/google-calendar-mcp
+
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    networks:
+      - minha_rede
+
+secrets:
+  gcp_oauth_keys:
+    external: true
+
+volumes:
+  calendar_tokens:
+    driver: local
+
+networks:
+  minha_rede:
+    external: true
