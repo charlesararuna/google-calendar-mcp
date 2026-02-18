@@ -1,5 +1,5 @@
 services:
-  calendar_mcp:
+  google_calendar_mcp:
     image: charlesararuna/google-calendar-mcp:latest
     command: node build/index.js --transport http --host 0.0.0.0 --port 3000
 
@@ -16,12 +16,12 @@ services:
         order: stop-first
       labels:
         - traefik.enable=true
-        - traefik.http.routers.calendar_mcp.rule=Host(`google-calendar.blue7.com.br`)
-        - traefik.http.routers.calendar_mcp.priority=100
-        - traefik.http.routers.calendar_mcp.entrypoints=websecure
-        - traefik.http.routers.calendar_mcp.tls=true
-        - traefik.http.routers.calendar_mcp.tls.certresolver=${TRAEFIK_CERTRESOLVER:-le}
-        - traefik.http.services.calendar_mcp.loadbalancer.server.port=3000
+        - traefik.http.routers.google_calendar_mcp.rule=Host(`google-calendar-mcp.blue7.com.br`)
+        - traefik.http.routers.google_calendar_mcp.priority=100
+        - traefik.http.routers.google_calendar_mcp.entrypoints=websecure
+        - traefik.http.routers.google_calendar_mcp.tls=true
+        - traefik.http.routers.google_calendar_mcp.tls.certresolver=${TRAEFIK_CERTRESOLVER:-le}
+        - traefik.http.services.google_calendar_mcp.loadbalancer.server.port=3000
         - traefik.docker.network=${TRAEFIK_NETWORK:-minha_rede}
       placement:
         constraints:
