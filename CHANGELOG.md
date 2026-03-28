@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.2](https://github.com/charlesararuna/google-calendar-mcp/compare/v2.4.1...v2.4.2) (2026-02-18)
+
+
+### Bug Fixes
+
+* detect recurring event instances via recurringEventId ([#164](https://github.com/charlesararuna/google-calendar-mcp/issues/164)) ([a26140c](https://github.com/charlesararuna/google-calendar-mcp/commit/a26140ce19b93d08dbbada70e768bd9ba8fa9463))
+* **http:** allow configured origins and public base URL for production auth flow ([c379430](https://github.com/charlesararuna/google-calendar-mcp/commit/c37943008ebd1acfb6a5b7c8f4c055d8bf22b6cd))
+
 ## [2.4.1](https://github.com/nspady/google-calendar-mcp/compare/v2.4.0...v2.4.1) (2026-01-18)
 
 
